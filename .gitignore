@@ -1,0 +1,82 @@
+# -------------------------------
+# Node Modules & Build Outputs
+# -------------------------------
+node_modules/
+dist/
+dist-ssr/
+build/
+.temp/
+.temp/**
+
+# -------------------------------
+# Vite
+# -------------------------------
+.vite/
+
+# -------------------------------
+# Logs
+# -------------------------------
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# -------------------------------
+# Environment Variables
+# -------------------------------
+.env
+.env.*
+!.env.example  # Keep a sample config file
+
+# -------------------------------
+# OS Generated Files
+# -------------------------------
+.DS_Store
+Thumbs.db
+
+# -------------------------------
+# Editor Directories & Files
+# -------------------------------
+.vscode/*
+!.vscode/extensions.json
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# -------------------------------
+# Supabase
+# -------------------------------
+.supabase/
+supabase/.temp/
+supabase/migrations/ # optional — keep this if you don't want to commit migrations
+.supabase/config.toml
+.supabase/functions/**/node_modules/
+
+# -------------------------------
+# Testing & Coverage
+# -------------------------------
+coverage/
+*.lcov
+
+# -------------------------------
+# Misc
+# -------------------------------
+*.local
+*.cache
+.cache/
+*.pid
+*.seed
+*.tgz
+*.gz
+*.zip
+
+# -------------------------------
+# Dependency directories (monorepos)
+# -------------------------------
+packages/*/node_modules/
