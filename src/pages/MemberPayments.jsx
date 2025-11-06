@@ -14,7 +14,7 @@ const MemberPayments = () => {
   const [modalImage, setModalImage] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-  const [editPayment, setEditPayment] = useState(null); // Store payment being edited
+  const [editPayment, setEditPayment] = useState(null);
   const [editMonth, setEditMonth] = useState("");
   const [editAmount, setEditAmount] = useState("");
   const [editProofFile, setEditProofFile] = useState(null);
@@ -129,11 +129,9 @@ const MemberPayments = () => {
     try {
       let filePath = editPayment.proof_url;
       if (editProofFile) {
-        // Delete old file if new file is uploaded
         if (filePath) {
           await supabase.storage.from("payment-proofs").remove([filePath]);
         }
-        // Upload new file
         const fileExt = editProofFile.name.split(".").pop();
         filePath = `${session.user.id}/${Date.now()}.${fileExt}`;
         const { error: uploadError } = await supabase.storage
@@ -142,14 +140,13 @@ const MemberPayments = () => {
         if (uploadError) throw uploadError;
       }
 
-      // Update payment record
       const { error: updateError } = await supabase
         .from("payments")
         .update({
           month: editMonth,
           amount: editAmount,
           proof_url: filePath,
-          status: "Pending", // Reset to Pending on edit
+          status: "Pending",
         })
         .eq("id", editPayment.id);
 
@@ -175,12 +172,10 @@ const MemberPayments = () => {
     if (!window.confirm("Are you sure you want to delete this payment?")) return;
 
     try {
-      // Delete proof file from storage
       if (payment.proof_url) {
         await supabase.storage.from("payment-proofs").remove([payment.proof_url]);
       }
 
-      // Delete payment record
       const { error } = await supabase.from("payments").delete().eq("id", payment.id);
 
       if (error) throw error;
@@ -214,151 +209,205 @@ const MemberPayments = () => {
     setEditProofFile(null);
   };
 
-  if (loading) return <div className="p-6 text-gray-500">Loading payments...</div>;
+  if (loading) return (
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
+      <div className="bg-white rounded-2xl shadow-lg p-8 text-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
+        <p className="text-gray-600">Loading payments...</p>
+      </div>
+    </div>
+  );
 
   return (
-    <div className="p-6 space-y-6 bg-gray-50 rounded-2xl shadow-md">
-      <h1 className="text-2xl font-bold text-gray-800 mb-4">My Payments</h1>
-
-      {/* 💳 Upload Form */}
-      <form onSubmit={handleUpload} className="bg-white p-4 rounded-lg shadow space-y-3">
-        <h2 className="text-lg font-semibold text-gray-700">Upload Payment Proof</h2>
-        <div className="grid md:grid-cols-3 gap-3">
-          <select
-            value={month}
-            onChange={(e) => setMonth(e.target.value)}
-            className="border p-2 rounded-lg"
-          >
-            <option value="" disabled>Select Month</option>
-            {["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"].map((m) => (
-              <option key={m} value={m}>{m}</option>
-            ))}
-          </select>
-          <input
-            type="number"
-            placeholder="Amount (₹)"
-            className="border p-2 rounded-lg"
-            value={amount}
-            onChange={(e) => setAmount(e.target.value)}
-          />
-          <input
-            type="file"
-            accept=".pdf,.jpg,.jpeg,.png"
-            className="border p-2 rounded-lg"
-            onChange={handleFileChange}
-          />
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4 md:p-6">
+      <div className="max-w-7xl mx-auto space-y-6">
+        {/* Header */}
+        <div className="text-center mb-8">
+          <h1 className="text-3xl md:text-4xl font-bold text-gray-800 mb-2 bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+            My Payments
+          </h1>
+          <p className="text-gray-600">Manage and track your payment history</p>
         </div>
-        <button
-          type="submit"
-          disabled={uploading}
-          className="bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 transition duration-300"
-        >
-          {uploading ? "Uploading..." : "Submit Payment"}
-        </button>
-      </form>
 
-      {/* 📜 Payment History */}
-      <section className="bg-white p-4 rounded-lg shadow">
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="text-lg font-semibold text-gray-700">Payment History</h2>
-          <div className="flex gap-2">
+        {/* Upload Card */}
+        <div className="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden">
+          <div className="bg-gradient-to-r from-blue-500 to-purple-500 p-4">
+            <h2 className="text-xl font-semibold text-white">Upload Payment Proof</h2>
+          </div>
+          <form onSubmit={handleUpload} className="p-6 space-y-4">
+            <div className="grid md:grid-cols-3 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Month <span className="text-red-500">*</span>
+                </label>
+                <select
+                  value={month}
+                  onChange={(e) => setMonth(e.target.value)}
+                  className="w-full border border-gray-300 rounded-xl px-4 py-3 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+                  required
+                >
+                  <option value="" disabled>Select Month</option>
+                  {["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"].map((m) => (
+                    <option key={m} value={m}>{m}</option>
+                  ))}
+                </select>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Amount (₹) <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="number"
+                  placeholder="Enter amount"
+                  className="w-full border border-gray-300 rounded-xl px-4 py-3 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+                  value={amount}
+                  onChange={(e) => setAmount(e.target.value)}
+                  required
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Proof File <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="file"
+                  accept=".pdf,.jpg,.jpeg,.png"
+                  className="w-full border border-gray-300 rounded-xl px-4 py-3 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 transition-all duration-200"
+                  onChange={handleFileChange}
+                  required
+                />
+              </div>
+            </div>
             <button
-              onClick={() => handleExport("csv")}
-              className="bg-gray-200 px-3 py-1 rounded hover:bg-gray-300 transition duration-300"
+              type="submit"
+              disabled={uploading}
+              className="bg-gradient-to-r from-blue-500 to-purple-500 text-white px-8 py-3 rounded-xl font-semibold hover:from-blue-600 hover:to-purple-600 transform hover:scale-105 transition-all duration-200 disabled:opacity-50 disabled:transform-none"
             >
-              Export CSV
+              {uploading ? (
+                <span className="flex items-center justify-center">
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                  Uploading...
+                </span>
+              ) : (
+                "Submit Payment"
+              )}
             </button>
-            <button
-              onClick={() => handleExport("pdf")}
-              className="bg-gray-200 px-3 py-1 rounded hover:bg-gray-300 transition duration-300"
-            >
-              Export PDF
-            </button>
+          </form>
+        </div>
+
+        {/* Payment History Card */}
+        <div className="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden">
+          <div className="bg-gradient-to-r from-green-500 to-teal-500 p-4 flex flex-col sm:flex-row justify-between items-center">
+            <h2 className="text-xl font-semibold text-white mb-2 sm:mb-0">Payment History</h2>
+            <div className="flex gap-2">
+              <button className="bg-white text-green-600 px-4 py-2 rounded-lg font-semibold hover:bg-gray-50 transform hover:scale-105 transition-all duration-200">
+                Export CSV
+              </button>
+              <button className="bg-white text-green-600 px-4 py-2 rounded-lg font-semibold hover:bg-gray-50 transform hover:scale-105 transition-all duration-200">
+                Export PDF
+              </button>
+            </div>
+          </div>
+
+          <div className="p-6">
+            {payments.length === 0 ? (
+              <div className="text-center py-12">
+                <div className="text-gray-400 text-6xl mb-4">💸</div>
+                <p className="text-gray-500 text-lg">No payment records found.</p>
+                <p className="text-gray-400">Upload your first payment above to get started.</p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto rounded-xl border border-gray-200">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Month</th>
+                      <th className="px-6 py-4 text-right text-xs font-semibold text-gray-600 uppercase tracking-wider">Amount</th>
+                      <th className="px-6 py-4 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">Proof</th>
+                      <th className="px-6 py-4 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">Status</th>
+                      <th className="px-6 py-4 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">Approved At</th>
+                      <th className="px-6 py-4 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {payments.map((p) => (
+                      <tr key={p.id} className="hover:bg-gray-50 transition-colors duration-150">
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <span className="font-medium text-gray-900">{p.month}</span>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-right">
+                          <span className="font-semibold text-gray-900">₹{p.amount}</span>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-center">
+                          {p.signed_url ? (
+                            <img
+                              src={p.signed_url}
+                              alt={`Proof for ${p.month}`}
+                              className="cursor-pointer w-16 h-16 object-cover rounded-lg border border-gray-200 hover:border-blue-500 transition-all duration-200 mx-auto"
+                              onClick={() => openModal(p.signed_url)}
+                            />
+                          ) : (
+                            <span className="text-gray-400">Loading...</span>
+                          )}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-center">
+                          <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold ${
+                            p.status === "Approved"
+                              ? "bg-green-100 text-green-800"
+                              : p.status === "Rejected"
+                              ? "bg-red-100 text-red-800"
+                              : "bg-yellow-100 text-yellow-800"
+                          }`}>
+                            {p.status}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-center text-sm text-gray-500">
+                          {p.approved_at ? new Date(p.approved_at).toLocaleDateString() : "-"}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-center">
+                          <div className="flex justify-center space-x-2">
+                            <button
+                              onClick={() => handleEdit(p)}
+                              disabled={p.status === "Approved"}
+                              className="bg-blue-500 text-white px-3 py-2 rounded-lg font-medium hover:bg-blue-600 disabled:bg-gray-300 disabled:cursor-not-allowed transition-all duration-200 transform hover:scale-105 disabled:transform-none"
+                            >
+                              Edit
+                            </button>
+                            <button
+                              onClick={() => handleDelete(p)}
+                              disabled={p.status === "Approved"}
+                              className="bg-red-500 text-white px-3 py-2 rounded-lg font-medium hover:bg-red-600 disabled:bg-gray-300 disabled:cursor-not-allowed transition-all duration-200 transform hover:scale-105 disabled:transform-none"
+                            >
+                              Delete
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
         </div>
+      </div>
 
-        {payments.length === 0 ? (
-          <p className="text-gray-500">No payment records found.</p>
-        ) : (
-          <table className="min-w-full border text-sm">
-            <thead>
-              <tr className="bg-gray-100">
-                <th className="border px-3 py-2 text-left">Month</th>
-                <th className="border px-3 py-2 text-right">Amount (₹)</th>
-                <th className="border px-3 py-2">Proof</th>
-                <th className="border px-3 py-2">Status</th>
-                <th className="border px-3 py-2">Approved At</th>
-                <th className="border px-3 py-2">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {payments.map((p) => (
-                <tr key={p.id}>
-                  <td className="border px-3 py-2">{p.month}</td>
-                  <td className="border px-3 py-2 text-right">{p.amount}</td>
-                  <td className="border px-3 py-2 text-center">
-                    {p.signed_url ? (
-                      <img
-                        src={p.signed_url}
-                        alt={`Proof for ${p.month}`}
-                        className="cursor-pointer w-20 h-20 object-cover mt-2"
-                        onClick={() => openModal(p.signed_url)}
-                      />
-                    ) : (
-                      <span>Loading...</span>
-                    )}
-                  </td>
-                  <td
-                    className={`border px-3 py-2 text-center font-medium ${
-                      p.status === "Approved"
-                        ? "text-green-600"
-                        : p.status === "Rejected"
-                        ? "text-red-600"
-                        : "text-yellow-600"
-                    }`}
-                  >
-                    {p.status}
-                  </td>
-                  <td className="border px-3 py-2 text-sm text-gray-500">
-                    {p.approved_at ? new Date(p.approved_at).toLocaleString() : "-"}
-                  </td>
-                  <td className="border px-3 py-2 text-center">
-                    <button
-                      onClick={() => handleEdit(p)}
-                      className="bg-blue-500 text-white px-2 py-1 rounded mr-2 hover:bg-blue-600 transition duration-300"
-                      disabled={p.status === "Approved"} // Disable edit for approved payments
-                    >
-                      Edit
-                    </button>
-                    <button
-                      onClick={() => handleDelete(p)}
-                      className="bg-red-500 text-white px-2 py-1 rounded hover:bg-red-600 transition duration-300"
-                      disabled={p.status === "Approved"} // Disable delete for approved payments
-                    >
-                      Delete
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </section>
-
-      {/* Modal for Enlarged Image */}
+      {/* Image Modal */}
       {isModalOpen && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50">
-          <div className="relative">
+        <div className="fixed inset-0 bg-black bg-opacity-75 flex justify-center items-center z-50 p-4">
+          <div className="relative max-w-4xl max-h-full">
             <button
               onClick={closeModal}
-              className="absolute top-2 right-2 text-white text-xl"
+              className="absolute -top-12 right-0 text-white text-3xl hover:text-gray-300 transition-colors duration-200"
             >
-              ×
+              ✕
             </button>
             <img
               src={modalImage}
               alt="Enlarged Proof"
-              className="max-w-full max-h-screen object-contain"
+              className="max-w-full max-h-screen object-contain rounded-lg shadow-2xl"
             />
           </div>
         </div>
@@ -366,52 +415,70 @@ const MemberPayments = () => {
 
       {/* Edit Modal */}
       {isEditModalOpen && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50">
-          <div className="bg-white p-6 rounded-lg shadow-lg max-w-md w-full">
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-lg font-semibold text-gray-700">Edit Payment</h2>
-              <button onClick={closeEditModal} className="text-gray-500 text-xl">
-                ×
-              </button>
+        <div className="fixed inset-0 bg-black bg-opacity-75 flex justify-center items-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full">
+            <div className="bg-gradient-to-r from-blue-500 to-purple-500 p-6 rounded-t-2xl">
+              <div className="flex justify-between items-center">
+                <h2 className="text-xl font-semibold text-white">Edit Payment</h2>
+                <button onClick={closeEditModal} className="text-white text-2xl hover:text-gray-200 transition-colors duration-200">
+                  ✕
+                </button>
+              </div>
             </div>
-            <form onSubmit={handleUpdate} className="space-y-3">
-              <select
-                value={editMonth}
-                onChange={(e) => setEditMonth(e.target.value)}
-                className="border p-2 rounded-lg w-full"
-              >
-                <option value="" disabled>Select Month</option>
-                {["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"].map((m) => (
-                  <option key={m} value={m}>{m}</option>
-                ))}
-              </select>
-              <input
-                type="number"
-                placeholder="Amount (₹)"
-                className="border p-2 rounded-lg w-full"
-                value={editAmount}
-                onChange={(e) => setEditAmount(e.target.value)}
-              />
-              <input
-                type="file"
-                accept=".pdf,.jpg,.jpeg,.png"
-                className="border p-2 rounded-lg w-full"
-                onChange={handleEditFileChange}
-              />
-              <div className="flex justify-end gap-2">
+            <form onSubmit={handleUpdate} className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Month</label>
+                <select
+                  value={editMonth}
+                  onChange={(e) => setEditMonth(e.target.value)}
+                  className="w-full border border-gray-300 rounded-xl px-4 py-3 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+                >
+                  <option value="" disabled>Select Month</option>
+                  {["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"].map((m) => (
+                    <option key={m} value={m}>{m}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Amount (₹)</label>
+                <input
+                  type="number"
+                  placeholder="Enter amount"
+                  className="w-full border border-gray-300 rounded-xl px-4 py-3 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+                  value={editAmount}
+                  onChange={(e) => setEditAmount(e.target.value)}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Update Proof File</label>
+                <input
+                  type="file"
+                  accept=".pdf,.jpg,.jpeg,.png"
+                  className="w-full border border-gray-300 rounded-xl px-4 py-3 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 transition-all duration-200"
+                  onChange={handleEditFileChange}
+                />
+              </div>
+              <div className="flex justify-end gap-3 pt-4">
                 <button
                   type="button"
                   onClick={closeEditModal}
-                  className="bg-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-400 transition duration-300"
+                  className="px-6 py-3 border border-gray-300 text-gray-700 rounded-xl font-semibold hover:bg-gray-50 transition-all duration-200"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={uploading}
-                  className="bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 transition duration-300"
+                  className="bg-gradient-to-r from-blue-500 to-purple-500 text-white px-6 py-3 rounded-xl font-semibold hover:from-blue-600 hover:to-purple-600 transform hover:scale-105 disabled:opacity-50 disabled:transform-none transition-all duration-200"
                 >
-                  {uploading ? "Updating..." : "Update Payment"}
+                  {uploading ? (
+                    <span className="flex items-center justify-center">
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                      Updating...
+                    </span>
+                  ) : (
+                    "Update Payment"
+                  )}
                 </button>
               </div>
             </form>

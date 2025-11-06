@@ -102,48 +102,119 @@ export default function ProfilePage() {
     }
   };
 
-  if (loading) return <p>Loading...</p>;
+  if (loading) return (
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
+      <div className="bg-white rounded-2xl shadow-lg p-8 text-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
+        <p className="text-gray-600">Loading profile...</p>
+      </div>
+    </div>
+  );
 
   return (
-    <div className="p-6 max-w-md mx-auto bg-white rounded-2xl shadow">
-      <h2 className="text-xl font-semibold mb-4">My Profile</h2>
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 py-8 px-4">
+      <div className="max-w-md mx-auto">
+        {/* Header */}
+        <div className="text-center mb-8">
+          <h1 className="text-3xl font-bold text-gray-800 mb-2 bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+            My Profile
+          </h1>
+          <p className="text-gray-600">Manage your personal information</p>
+        </div>
 
-      {profile.avatar_url ? (
-        <img
-          src={profile.avatar_url}
-          alt="Avatar"
-          className="w-24 h-24 rounded-full mb-4 object-cover"
-        />
-      ) : (
-        <div className="w-24 h-24 bg-gray-200 rounded-full mb-4"></div>
-      )}
+        {/* Profile Card */}
+        <div className="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden">
+          {/* Card Header */}
+          <div className="bg-gradient-to-r from-blue-500 to-purple-500 p-6">
+            <h2 className="text-xl font-semibold text-white">Profile Information</h2>
+          </div>
 
-      <input type="file" onChange={handleUpload} disabled={uploading} />
+          {/* Card Content */}
+          <div className="p-6 space-y-6">
+            {/* Avatar Section */}
+            <div className="text-center">
+              <div className="relative inline-block">
+                {profile.avatar_url ? (
+                  <img
+                    src={profile.avatar_url}
+                    alt="Profile Avatar"
+                    className="w-32 h-32 rounded-full border-4 border-white shadow-lg object-cover mx-auto"
+                  />
+                ) : (
+                  <div className="w-32 h-32 rounded-full border-4 border-white shadow-lg bg-gradient-to-br from-gray-200 to-gray-300 flex items-center justify-center mx-auto">
+                    <span className="text-4xl text-gray-400">👤</span>
+                  </div>
+                )}
+                <div className="absolute bottom-2 right-2 bg-white rounded-full p-2 shadow-lg">
+                  <label className="cursor-pointer">
+                    <input
+                      type="file"
+                      className="hidden"
+                      accept="image/*"
+                      onChange={handleUpload}
+                      disabled={uploading}
+                    />
+                    <div className="w-8 h-8 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full flex items-center justify-center">
+                      {uploading ? (
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                      ) : (
+                        <span className="text-white text-sm">📷</span>
+                      )}
+                    </div>
+                  </label>
+                </div>
+              </div>
+              <p className="text-sm text-gray-500 mt-3">
+                {uploading ? "Uploading..." : "Click camera to update photo"}
+              </p>
+            </div>
 
-      <label className="block mt-4">Full Name</label>
-      <input
-        className="border p-2 w-full rounded"
-        type="text"
-        value={profile.full_name || ""}
-        onChange={(e) =>
-          setProfile({ ...profile, full_name: e.target.value })
-        }
-      />
+            {/* Form Fields */}
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Full Name <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={profile.full_name || ""}
+                  onChange={(e) => setProfile({ ...profile, full_name: e.target.value })}
+                  className="w-full border border-gray-300 rounded-xl px-4 py-3 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+                  placeholder="Enter your full name"
+                />
+              </div>
 
-      <label className="block mt-4">Phone</label>
-      <input
-        className="border p-2 w-full rounded"
-        type="text"
-        value={profile.phone || ""}
-        onChange={(e) => setProfile({ ...profile, phone: e.target.value })}
-      />
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Phone Number <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={profile.phone || ""}
+                  onChange={(e) => setProfile({ ...profile, phone: e.target.value })}
+                  className="w-full border border-gray-300 rounded-xl px-4 py-3 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+                  placeholder="Enter your phone number"
+                />
+              </div>
+            </div>
 
-      <button
-        onClick={handleSave}
-        className="mt-6 w-full bg-blue-600 text-white py-2 rounded hover:bg-blue-700"
-      >
-        Save Changes
-      </button>
+            {/* Save Button */}
+            <button
+              onClick={handleSave}
+              className="w-full bg-gradient-to-r from-blue-500 to-purple-500 text-white py-3 rounded-xl font-semibold hover:from-blue-600 hover:to-purple-600 transform hover:scale-105 transition-all duration-200 shadow-lg"
+            >
+              Save Changes
+            </button>
+          </div>
+        </div>
+
+        {/* Additional Info */}
+        <div className="mt-6 text-center">
+          <p className="text-sm text-gray-500">
+            Your profile information is secure and private
+          </p>
+        </div>
+      </div>
     </div>
   );
 }

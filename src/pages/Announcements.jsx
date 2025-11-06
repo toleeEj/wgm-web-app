@@ -10,11 +10,8 @@ const Announcements = () => {
   const [isSaving, setIsSaving] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
   const [showForm, setShowForm] = useState(false);
-  const [editingId, setEditingId] = useState(null); // 👈 for update mode
-  const [editTitle, setEditTitle] = useState("");
-  const [editBody, setEditBody] = useState("");
+  const [editingId, setEditingId] = useState(null);
 
-  /** Initialize session and load announcements on mount */
   useEffect(() => {
     const initialize = async () => {
       setIsLoading(true);
@@ -23,29 +20,23 @@ const Announcements = () => {
 
       if (data?.session) {
         try {
-          const { data: profile, error } = await supabase
+          const { data: profile } = await supabase
             .from("profiles")
             .select("role")
             .eq("id", data.session.user.id)
             .single();
-
-          if (error) throw error;
-
           setIsAdmin(profile?.role === "Admin");
         } catch (err) {
-          console.error("Profile fetch failed:", err.message, err);
-          alert("⚠️ Failed to verify admin status.");
+          console.error("Profile fetch failed:", err.message);
           setIsAdmin(false);
         }
       }
-
       await loadAnnouncements();
       setIsLoading(false);
     };
     initialize();
   }, []);
 
-  /** Fetch announcements */
   const loadAnnouncements = async () => {
     const { data, error } = await supabase
       .from("announcements")
@@ -54,163 +45,141 @@ const Announcements = () => {
       .order("created_at", { ascending: false });
 
     if (error) {
-      console.error("Error fetching announcements:", error.message, error);
-      alert("❌ Failed to load announcements.");
+      console.error("Error fetching announcements:", error.message);
       return;
     }
     setAnnouncements(data || []);
   };
 
-  /** Create announcement */
   const handlePost = async (e) => {
     e.preventDefault();
-    if (!title.trim()) {
-      alert("Title is required.");
-      return;
-    }
+    if (!title.trim()) return;
 
     setIsSaving(true);
-
-    const payload = {
+    const { error } = await supabase.from("announcements").insert([{
       title: title.trim(),
       body: body.trim() || null,
       type: "Public",
       target_user_id: session?.user?.id,
-    };
+    }]);
 
-    const { error } = await supabase.from("announcements").insert([payload]);
-
-    if (error) {
-      console.error("Error posting announcement:", error.message, error);
-      alert("❌ Failed to post announcement.");
-    } else {
-      alert("✅ Announcement posted successfully!");
+    if (!error) {
       setTitle("");
       setBody("");
       setShowForm(false);
       await loadAnnouncements();
     }
-
     setIsSaving(false);
   };
 
-  /** Delete announcement */
   const handleDelete = async (id) => {
     if (!window.confirm("Are you sure you want to delete this announcement?")) return;
-
+    
     const { error } = await supabase.from("announcements").delete().eq("id", id);
-
-    if (error) {
-      console.error("Error deleting announcement:", error.message, error);
-      alert("❌ Failed to delete announcement.");
-    } else {
-      alert("🗑️ Announcement deleted.");
-      await loadAnnouncements();
-    }
+    if (!error) await loadAnnouncements();
   };
 
-  /** Start editing an announcement */
-  const handleEditStart = (announcement) => {
-    setEditingId(announcement.id);
-    setEditTitle(announcement.title);
-    setEditBody(announcement.body || "");
-  };
-
-  /** Cancel editing */
-  const handleEditCancel = () => {
-    setEditingId(null);
-    setEditTitle("");
-    setEditBody("");
-  };
-
-  /** Save updates */
-  const handleEditSave = async (id) => {
-    if (!editTitle.trim()) {
-      alert("Title cannot be empty.");
-      return;
-    }
+  const handleEdit = async (announcement) => {
+    if (!announcement.title.trim()) return;
 
     const { error } = await supabase
       .from("announcements")
       .update({
-        title: editTitle.trim(),
-        body: editBody.trim() || null,
+        title: announcement.title.trim(),
+        body: announcement.body?.trim() || null,
       })
-      .eq("id", id);
+      .eq("id", announcement.id);
 
-    if (error) {
-      console.error("Error updating announcement:", error.message, error);
-      alert("❌ Failed to update announcement.");
-    } else {
-      alert("✅ Announcement updated successfully!");
+    if (!error) {
       setEditingId(null);
       await loadAnnouncements();
     }
   };
 
   return (
-    <div className="p-6 bg-gray-50 min-h-screen">
-      <div className="max-w-5xl mx-auto bg-white p-6 rounded-lg shadow">
-        <h1 className="text-2xl font-bold text-gray-800 mb-6">
-          📢 Notifications & Announcements
-        </h1>
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-purple-50 p-4">
+      <div className="max-w-4xl mx-auto">
+        {/* Header */}
+        <div className="text-center mb-8">
+          <h1 className="text-3xl font-bold text-gray-800 mb-2">
+            📢 Announcements
+          </h1>
+          <p className="text-gray-600">Stay updated with the latest news</p>
+        </div>
 
-        {/* Login Prompt */}
+        {/* Login Section */}
         {!session && (
-          <div className="mb-8 text-center">
-            <p className="text-gray-600">Please log in to view or post announcements.</p>
+          <div className="bg-white rounded-2xl shadow-lg p-8 text-center mb-8">
+            <div className="w-16 h-16 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full flex items-center justify-center mx-auto mb-4">
+              <span className="text-2xl text-white">🔒</span>
+            </div>
+            <h2 className="text-xl font-semibold text-gray-800 mb-2">
+              Sign In Required
+            </h2>
+            <p className="text-gray-600 mb-4">
+              Please log in to view and interact with announcements
+            </p>
             <button
               onClick={() => supabase.auth.signInWithOAuth({ provider: "google" })}
-              className="bg-blue-600 text-white px-4 py-2 rounded mt-2 hover:bg-blue-700"
+              className="bg-gradient-to-r from-blue-600 to-purple-600 text-white px-6 py-3 rounded-xl font-semibold hover:shadow-lg transition-all duration-300"
             >
-              Log In
+              Sign In with Google
             </button>
           </div>
         )}
 
-        {/* Admin Post Button + Conditional Form */}
+        {/* Admin Controls */}
         {session && isAdmin && (
           <div className="mb-8">
             <button
               onClick={() => setShowForm(!showForm)}
-              className="bg-green-600 text-white px-4 py-2 rounded mb-4 hover:bg-green-700 transition"
+              className="bg-gradient-to-r from-green-500 to-emerald-600 text-white px-6 py-3 rounded-xl font-semibold mb-4 hover:shadow-lg transition-all duration-300 flex items-center gap-2"
             >
-              {showForm ? "✖️ Cancel" : "➕ Create Announcement"}
+              {showForm ? (
+                <>✖️ Cancel</>
+              ) : (
+                <>➕ Create Announcement</>
+              )}
             </button>
 
             {showForm && (
-              <form onSubmit={handlePost} className="border p-4 rounded-md bg-gray-50">
-                <h2 className="text-lg font-semibold text-gray-700 mb-4">
-                  Post New Announcement
+              <form onSubmit={handlePost} className="bg-white rounded-2xl shadow-lg p-6 mb-6">
+                <h2 className="text-xl font-semibold text-gray-800 mb-4">
+                  Create New Announcement
                 </h2>
-                <div className="mb-4">
-                  <label className="block text-gray-700 font-semibold mb-1">Title</label>
-                  <input
-                    type="text"
-                    value={title}
-                    onChange={(e) => setTitle(e.target.value)}
-                    className="w-full border border-gray-300 p-2 rounded-md"
-                    placeholder="Enter announcement title"
-                  />
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Title *
+                    </label>
+                    <input
+                      type="text"
+                      value={title}
+                      onChange={(e) => setTitle(e.target.value)}
+                      className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                      placeholder="Enter announcement title"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Details
+                    </label>
+                    <textarea
+                      value={body}
+                      onChange={(e) => setBody(e.target.value)}
+                      className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all h-32"
+                      placeholder="Add announcement details..."
+                    />
+                  </div>
+                  <button
+                    type="submit"
+                    disabled={isSaving}
+                    className="bg-gradient-to-r from-blue-600 to-purple-600 text-white px-6 py-3 rounded-xl font-semibold hover:shadow-lg transition-all duration-300 disabled:opacity-50"
+                  >
+                    {isSaving ? "Posting..." : "📤 Publish Announcement"}
+                  </button>
                 </div>
-                <div className="mb-4">
-                  <label className="block text-gray-700 font-semibold mb-1">Body</label>
-                  <textarea
-                    value={body}
-                    onChange={(e) => setBody(e.target.value)}
-                    className="w-full border border-gray-300 p-2 rounded-md h-32"
-                    placeholder="Write the announcement details..."
-                  />
-                </div>
-                <button
-                  type="submit"
-                  disabled={isSaving}
-                  className={`${
-                    isSaving ? "bg-blue-400" : "bg-blue-600 hover:bg-blue-700"
-                  } text-white px-4 py-2 rounded`}
-                >
-                  {isSaving ? "Posting..." : "📤 Post Announcement"}
-                </button>
               </form>
             )}
           </div>
@@ -218,78 +187,115 @@ const Announcements = () => {
 
         {/* Announcements List */}
         {session && (
-          <div className="border-t pt-4">
-            <h2 className="text-lg font-semibold text-gray-700 mb-4">
-              🕓 Past Announcements
+          <div className="space-y-6">
+            <h2 className="text-2xl font-bold text-gray-800 mb-2">
+              Latest Updates
             </h2>
+            
             {isLoading ? (
-              <p className="text-gray-500">Loading announcements...</p>
+              <div className="flex justify-center items-center py-12">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+              </div>
             ) : announcements.length === 0 ? (
-              <p className="text-gray-500">No announcements available.</p>
+              <div className="bg-white rounded-2xl shadow-lg p-8 text-center">
+                <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <span className="text-2xl text-gray-400">📭</span>
+                </div>
+                <h3 className="text-lg font-semibold text-gray-700 mb-2">
+                  No Announcements Yet
+                </h3>
+                <p className="text-gray-500">
+                  {isAdmin ? "Create the first announcement!" : "Check back later for updates."}
+                </p>
+              </div>
             ) : (
-              <ul className="space-y-4">
+              <div className="grid gap-4">
                 {announcements.map((announcement) => (
-                  <li
+                  <article
                     key={announcement.id}
-                    className="border p-4 rounded-md bg-gray-50 announcement-item relative"
+                    className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 p-6 relative"
                   >
                     {editingId === announcement.id ? (
-                      <>
-                        {/* Editing Mode */}
+                      <div className="space-y-4">
                         <input
                           type="text"
-                          value={editTitle}
-                          onChange={(e) => setEditTitle(e.target.value)}
-                          className="w-full border border-gray-300 p-2 rounded-md mb-2"
+                          value={announcement.title}
+                          onChange={(e) => {
+                            const updatedAnnouncements = announcements.map(a =>
+                              a.id === announcement.id 
+                                ? { ...a, title: e.target.value }
+                                : a
+                            );
+                            setAnnouncements(updatedAnnouncements);
+                          }}
+                          className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent text-lg font-semibold"
                         />
                         <textarea
-                          value={editBody}
-                          onChange={(e) => setEditBody(e.target.value)}
-                          className="w-full border border-gray-300 p-2 rounded-md h-24 mb-2"
+                          value={announcement.body || ""}
+                          onChange={(e) => {
+                            const updatedAnnouncements = announcements.map(a =>
+                              a.id === announcement.id 
+                                ? { ...a, body: e.target.value }
+                                : a
+                            );
+                            setAnnouncements(updatedAnnouncements);
+                          }}
+                          className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none h-32"
                         />
                         <div className="flex gap-2">
                           <button
-                            onClick={() => handleEditSave(announcement.id)}
-                            className="bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700"
+                            onClick={() => handleEdit(announcement)}
+                            className="bg-green-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-green-700 transition-colors"
                           >
                             💾 Save
                           </button>
                           <button
-                            onClick={handleEditCancel}
-                            className="bg-gray-300 px-3 py-1 rounded hover:bg-gray-400"
+                            onClick={() => setEditingId(null)}
+                            className="bg-gray-500 text-white px-4 py-2 rounded-lg font-medium hover:bg-gray-600 transition-colors"
                           >
                             ✖️ Cancel
                           </button>
                         </div>
-                      </>
+                      </div>
                     ) : (
                       <>
-                        {/* View Mode */}
-                        <h3 className="text-lg font-semibold text-gray-800">
+                        <h3 className="text-xl font-semibold text-gray-800 mb-3 pr-16">
                           {announcement.title}
                         </h3>
-                        <p className="text-gray-600 mt-1">
+                        <p className="text-gray-600 leading-relaxed mb-4">
                           {announcement.body || "No details provided."}
                         </p>
-                        <p className="text-xs text-gray-500 mt-2">
-                          Posted by{" "}
-                          {announcement.profiles?.full_name ||
-                            announcement.profiles?.email ||
-                            "Unknown"}{" "}
-                          on {new Date(announcement.created_at).toLocaleDateString()}
-                        </p>
+                        <div className="flex items-center justify-between text-sm text-gray-500">
+                          <span>
+                            Posted by{" "}
+                            <span className="font-medium">
+                              {announcement.profiles?.full_name ||
+                               announcement.profiles?.email ||
+                               "Unknown"}
+                            </span>
+                          </span>
+                          <span>
+                            {new Date(announcement.created_at).toLocaleDateString('en-US', {
+                              year: 'numeric',
+                              month: 'short',
+                              day: 'numeric'
+                            })}
+                          </span>
+                        </div>
 
                         {isAdmin && (
-                          <div className="absolute top-2 right-2 flex gap-2">
+                          <div className="absolute top-4 right-4 flex gap-2">
                             <button
-                              onClick={() => handleEditStart(announcement)}
-                              className="text-blue-600 hover:text-blue-800"
+                              onClick={() => setEditingId(announcement.id)}
+                              className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                              aria-label="Edit announcement"
                             >
                               ✏️
                             </button>
                             <button
                               onClick={() => handleDelete(announcement.id)}
-                              className="text-red-600 hover:text-red-800"
+                              className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                              aria-label="Delete announcement"
                             >
                               🗑️
                             </button>
@@ -297,22 +303,13 @@ const Announcements = () => {
                         )}
                       </>
                     )}
-                  </li>
+                  </article>
                 ))}
-              </ul>
+              </div>
             )}
           </div>
         )}
       </div>
-
-      <style>
-        {`
-          .announcement-item:hover {
-            background-color: #f9fafb;
-            transition: background-color 0.3s ease;
-          }
-        `}
-      </style>
     </div>
   );
 };
