@@ -98,9 +98,21 @@ export default function AuthPage() {
   };
 
   const handleGoogleLogin = async () => {
-    setIsLoading(true);
-    await supabase.auth.signInWithOAuth({ provider: "google" });
-  };
+  setIsLoading(true);
+
+  const { error } = await supabase.auth.signInWithOAuth({
+    provider: 'google',
+    options: {
+      redirectTo: 'http://localhost:5173/member' 
+    },
+  });
+
+  if (error) {
+    setMessage(`Google login error: ${error.message}`);
+    setIsLoading(false);
+  }
+  // Do NOT setIsLoading(false) here — the page will reload/redirect
+};
 
   const handleResetPassword = async () => {
     if (!email) {
