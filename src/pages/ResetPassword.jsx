@@ -4,45 +4,38 @@ import { useNavigate } from "react-router-dom";
 
 export default function ResetPasswordPage() {
   const [newPassword, setNewPassword] = useState("");
-  const [message, setMessage] = useState("");
+  const [message, setMessage] = useState("Checking reset link...");
+  const [sessionReady, setSessionReady] = useState(false);
   const navigate = useNavigate();
 
-  // Parse hash params
-  const parseHashParams = () => {
-    const hash = window.location.hash.replace(/^#/, ""); // remove #
-    return Object.fromEntries(new URLSearchParams(hash));
-  };
-
   useEffect(() => {
-    const params = parseHashParams();
+    // Listen for recovery session
+    const { data: listener } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (event === "PASSWORD_RECOVERY") {
+        setMessage("Please enter your new password.");
+        setSessionReady(true);
+      }
+    });
 
-    if (params.access_token) {
-      setMessage("Please enter a new password.");
-    } else if (params.error) {
-      const description = decodeURIComponent(params.error_description || params.error);
-      setMessage(`Error: ${description}`);
-    } else {
-      setMessage("Invalid or missing token.");
-    }
+    // Try to get the current session if it's already active
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session) {
+        setSessionReady(true);
+        setMessage("Please enter your new password.");
+      }
+    });
+
+    return () => {
+      listener.subscription.unsubscribe();
+    };
   }, []);
 
   const handleResetPassword = async () => {
-    const params = parseHashParams();
-    const access_token = params.access_token;
+    const { error } = await supabase.auth.updateUser({ password: newPassword });
 
-    if (!access_token) {
-      setMessage("No valid access token. Please request a new password reset.");
-      return;
-    }
-
-    const { error } = await supabase.auth.updateUser(
-      { password: newPassword },
-      { accessToken: access_token }
-    );
-
-    if (error) setMessage(error.message);
+    if (error) setMessage(`Error: ${error.message}`);
     else {
-      setMessage("Password successfully updated! Redirecting to login...");
+      setMessage("Password updated successfully! Redirecting...");
       setTimeout(() => navigate("/login"), 2000);
     }
   };
@@ -61,7 +54,7 @@ export default function ResetPasswordPage() {
       <button
         onClick={handleResetPassword}
         className="w-full bg-blue-500 text-white p-2 rounded"
-        disabled={!newPassword}
+        disabled={!newPassword || !sessionReady}
       >
         Reset Password
       </button>

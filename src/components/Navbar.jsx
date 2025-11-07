@@ -117,7 +117,6 @@ const Navbar = () => {
       icon: "👤",
       links: session ? [
         { name: "My Profile", path: "/profile", icon: "👤" },
-        
         { name: "Sign Out", path: "#", icon: "🚪", action: handleSignOut },
       ] : [
         { name: "Sign In", path: "/auth", icon: "🔐" },
@@ -137,9 +136,8 @@ const Navbar = () => {
             <span>WGM</span>
           </div>
 
-
           {/* Desktop Menu */}
-          <div className="hidden md:flex items-center space-x-1">
+          <div className="hidden md:flex items-center space-x-1"> 
             {navGroups.map(
               (group) =>
                 (!group.showFor || group.showFor.includes(role)) && (
@@ -163,8 +161,8 @@ const Navbar = () => {
                       }`} />
                     </button>
 
-                    {/* Dropdown menu */}
-                    <div className={`absolute left-0 mt-2 w-56 bg-white dark:bg-gray-800 text-gray-800 dark:text-white rounded-xl shadow-2xl border border-gray-200 dark:border-gray-700 backdrop-blur-lg transition-all duration-300 ${
+                    {/* Dropdown menu (gap fixed with -mt-[1px]) */}
+                    <div className={`absolute left-0 -mt-[1px] w-56 bg-white dark:bg-gray-800 text-gray-800 dark:text-white rounded-xl shadow-2xl border border-gray-200 dark:border-gray-700 backdrop-blur-lg transition-all duration-300 ${
                       activeDropdown === group.title 
                         ? "opacity-100 scale-100 translate-y-0" 
                         : "opacity-0 scale-95 -translate-y-2 pointer-events-none"
@@ -203,7 +201,6 @@ const Navbar = () => {
                 )
             )}
 
-
             {/* User Info */}
             {session && (
               <div className="flex items-center space-x-2 ml-4 pl-4 border-l border-white/20">
@@ -217,7 +214,6 @@ const Navbar = () => {
 
           {/* Mobile Menu Button */}
           <div className="flex items-center space-x-2 md:hidden">
-            {/* Theme Toggle */}
             <button
               onClick={toggleTheme}
               className="p-2 rounded-lg hover:bg-white/10 transition-all duration-300"
@@ -297,7 +293,6 @@ const Navbar = () => {
                 )
             )}
 
-            {/* User Info Mobile */}
             {session && (
               <div className="pt-3 mt-3 border-t border-white/20">
                 <div className="flex items-center space-x-2 px-3 py-2 text-sm">
