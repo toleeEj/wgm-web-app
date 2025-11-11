@@ -100,11 +100,11 @@ export default function AuthPage() {
   const handleGoogleLogin = async () => {
   setIsLoading(true);
 
+  const redirectTo = `${process.env.NEXT_PUBLIC_SITE_URL}/`;
+
   const { error } = await supabase.auth.signInWithOAuth({
     provider: 'google',
-    options: {
-      redirectTo: 'http://localhost:5173/member' 
-    },
+    options: { redirectTo },
   });
 
   if (error) {
