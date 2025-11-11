@@ -255,7 +255,7 @@ const MemberPayments = () => {
               
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Amount (₹) <span className="text-red-500">*</span>
+                  Amount (birr) <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="number"
@@ -338,7 +338,7 @@ const MemberPayments = () => {
                           <span className="font-medium text-gray-900">{p.month}</span>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-right">
-                          <span className="font-semibold text-gray-900">₹{p.amount}</span>
+                          <span className="font-semibold text-gray-900">{p.amount} birr</span>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-center">
                           {p.signed_url ? (
@@ -440,7 +440,7 @@ const MemberPayments = () => {
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Amount (₹)</label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Amount (birr)</label>
                 <input
                   type="number"
                   placeholder="Enter amount"

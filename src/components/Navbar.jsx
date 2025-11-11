@@ -137,7 +137,6 @@ const Navbar = () => {
                 className="w-13 h-13 object-contain"
               />
             </div>
-            <span>WGM</span>
           </div>
 
           {/* Desktop Menu */}

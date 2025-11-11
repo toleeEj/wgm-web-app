@@ -274,7 +274,7 @@ const AdminDashboard = () => {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           <StatCard
             title="Total Collection"
-            value={`₹${stats.total}`}
+            value={`${stats.total} birr`}
             color="blue"
             icon="💰"
           />
@@ -323,7 +323,7 @@ const AdminDashboard = () => {
           <DashboardSection title="Financial Overview" color="primary">
             <div className="space-y-4">
               <div className="text-center p-4 bg-blue-50 rounded-xl">
-                <p className="text-2xl font-bold text-blue-600">₹{stats.total}</p>
+                <p className="text-2xl font-bold text-blue-600">{stats.total} birr</p>
                 <p className="text-blue-500 text-sm">Total Approved Collection</p>
               </div>
               <div className="max-h-60 overflow-y-auto">
@@ -338,7 +338,7 @@ const AdminDashboard = () => {
                     {stats.monthly.map((month) => (
                       <tr key={month.month} className="border-b border-gray-100">
                         <td className="py-3 text-gray-700 capitalize">{month.month}</td>
-                        <td className="py-3 text-right font-semibold text-green-600">₹{month.total}</td>
+                        <td className="py-3 text-right font-semibold text-green-600">{month.total} birr</td>
                       </tr>
                     ))}
                   </tbody>
@@ -455,7 +455,7 @@ const PaymentCard = ({ payment, onApprove, onReject, onViewProof }) => (
         <div>
           <p className="font-semibold text-gray-800">{payment.member.full_name}</p>
           <p className="text-sm text-gray-600">
-            {payment.month} — ₹{payment.amount}
+            {payment.month} — {payment.amount} birr
           </p>
           {payment.signed_url && (
             <button
@@ -565,8 +565,8 @@ const PaymentHistoryTable = ({ payments }) => (
               </span>
             </td>
           ))}
-          <td className="text-right py-3 font-semibold text-green-600">₹{row.totalPaid}</td>
-          <td className="text-right py-3 font-semibold text-red-600">₹{row.amountLeft}</td>
+          <td className="text-right py-3 font-semibold text-green-600">{row.totalPaid} birr</td>
+          <td className="text-right py-3 font-semibold text-red-600">{row.amountLeft} birr</td>
         </tr>
       ))}
     </tbody>
