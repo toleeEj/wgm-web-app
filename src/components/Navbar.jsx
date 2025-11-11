@@ -130,8 +130,12 @@ const Navbar = () => {
         <div className="flex items-center justify-between h-16">
           {/* Logo */}
           <div className="flex items-center space-x-2 text-2xl font-bold hover:scale-105 transition-transform duration-300 cursor-default">
-            <div className="w-8 h-8 bg-white rounded-full flex items-center justify-center">
-              <span className="text-blue-600 text-lg font-bold">W</span>
+            <div className="w-13 h-13 bg-white rounded-full flex items-center justify-center overflow-hidden">
+              <img
+                src="/wgmlogo.jpg"
+                alt="Logo"
+                className="w-13 h-13 object-contain"
+              />
             </div>
             <span>WGM</span>
           </div>
