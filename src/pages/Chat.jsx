@@ -1,129 +1,171 @@
+// Chat.jsx (Professional Version)
+'use client';
+
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { supabase } from "../lib/supabaseClient";
+import { format } from "date-fns";
+import { Send, Paperclip, X, Bell } from "lucide-react";
 
-const Chat = () => {
+export default function Chat() {
   const [session, setSession] = useState(null);
   const [messages, setMessages] = useState([]);
-  const [messageText, setMessageText] = useState("");
-  const [uploading, setUploading] = useState(false);
-  const [fileUrl, setFileUrl] = useState(null);
-  const [previewImage, setPreviewImage] = useState(null);
-  const [editingMessageId, setEditingMessageId] = useState(null);
-  const [editingText, setEditingText] = useState("");
+  const [input, setInput] = useState("");
+  const [selectedUser, setSelectedUser] = useState(null);
   const [users, setUsers] = useState([]);
-  const [selectedReceiver, setSelectedReceiver] = useState(null);
-  const [unreadCounts, setUnreadCounts] = useState({});
-  const [isLoading, setIsLoading] = useState(false);
+  const [unread, setUnread] = useState({});           // per-user unread count
+  const [totalUnread, setTotalUnread] = useState(0); // sum of all unread
+  const [uploading, setUploading] = useState(false);
+  const [preview, setPreview] = useState(null);
+  const [filePath, setFilePath] = useState(null);
 
   const messagesEndRef = useRef(null);
   const channelRef = useRef(null);
   const fileInputRef = useRef(null);
+  const textareaRef = useRef(null);
 
-  // Session and users initialization
+  /* ────────────────────── Auto-resize textarea ────────────────────── */
   useEffect(() => {
-    const initialize = async () => {
+    const textarea = textareaRef.current;
+    if (textarea) {
+      textarea.style.height = "auto";
+      textarea.style.height = textarea.scrollHeight + "px";
+    }
+  }, [input]);
+
+  /* ────────────────────── Session & User List Initialization ────────────────────── */
+  useEffect(() => {
+    const initializeSession = async () => {
       const { data } = await supabase.auth.getSession();
-      if (data?.session) {
+      if (data.session) {
         setSession(data.session);
-        
-        const { data: usersData } = await supabase
+        const { data: profiles } = await supabase
           .from("profiles")
           .select("id, full_name, avatar_url");
-        
-        if (usersData) {
-          setUsers(usersData);
-          setUnreadCounts(Object.fromEntries(usersData.map(user => [user.id, 0])));
+        if (profiles) {
+          const otherUsers = profiles.filter(profile => profile.id !== data.session.user.id);
+          setUsers(otherUsers);
+          const initialUnread = {};
+          otherUsers.forEach(user => (initialUnread[user.id] = 0));
+          setUnread(initialUnread);
         }
       }
     };
 
-    initialize();
+    initializeSession();
 
-    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
-    });
-
-    return () => listener.subscription.unsubscribe();
+    const { data: authListener } = supabase.auth.onAuthStateChange((_, session) => setSession(session));
+    return () => authListener.subscription.unsubscribe();
   }, []);
 
-  // Fetch messages with optimized query
+  /* ────────────────────── Fetch Messages ────────────────────── */
   const fetchMessages = useCallback(async () => {
-    if (!session || !selectedReceiver) return;
-
-    setIsLoading(true);
-    const { data, error } = await supabase
+    if (!session || !selectedUser) return;
+    
+    const { data } = await supabase
       .from("messages")
-      .select("id, sender_id, receiver_id, content, attachment_url, created_at")
-      .or(`and(sender_id.eq.${session.user.id},receiver_id.eq.${selectedReceiver}),and(sender_id.eq.${selectedReceiver},receiver_id.eq.${session.user.id})`)
+      .select("id, sender_id, content, attachment_url, created_at")
+      .or(
+        `and(sender_id.eq.${session.user.id},receiver_id.eq.${selectedUser}),` +
+        `and(sender_id.eq.${selectedUser},receiver_id.eq.${session.user.id})`
+      )
       .order("created_at", { ascending: true });
 
-    if (!error && data) {
-      const senderIds = [...new Set(data.map(m => m.sender_id))];
+    if (data) {
+      const senderIds = [...new Set(data.map(message => message.sender_id))];
       const { data: profiles } = await supabase
         .from("profiles")
         .select("id, full_name, avatar_url")
         .in("id", senderIds);
 
-      const profileMap = Object.fromEntries(
-        (profiles || []).map(p => [p.id, p])
-      );
+      const profileMap = {};
+      (profiles || []).forEach(profile => (profileMap[profile.id] = profile));
 
       const enrichedMessages = await Promise.all(
-        data.map(async (msg) => {
-          let signed_url = null;
-          if (msg.attachment_url) {
-            const { data: signed } = await supabase.storage
+        data.map(async message => {
+          let signedUrl = null;
+          if (message.attachment_url) {
+            const { data: signedData } = await supabase.storage
               .from("chat-files")
-              .createSignedUrl(msg.attachment_url, 3600);
-            signed_url = signed?.signedUrl;
+              .createSignedUrl(message.attachment_url, 3600);
+            signedUrl = signedData?.signedUrl;
           }
-
           return {
-            ...msg,
-            signed_url,
-            sender: profileMap[msg.sender_id] || {
-              full_name: "Unknown",
-              avatar_url: "/default-avatar.png",
-            },
+            ...message,
+            signed_url: signedUrl,
+            sender:
+              profileMap[message.sender_id] || {
+                full_name: "Unknown",
+                avatar_url: "/default-avatar.png"
+              }
           };
         })
       );
-
       setMessages(enrichedMessages);
-      setUnreadCounts(prev => ({ ...prev, [selectedReceiver]: 0 }));
+      // Reset unread count for the opened conversation
+      setUnread(prev => ({ ...prev, [selectedUser]: 0 }));
     }
-    setIsLoading(false);
-  }, [session, selectedReceiver]);
+  }, [session, selectedUser]);
 
   useEffect(() => {
     fetchMessages();
   }, [fetchMessages]);
 
-  // Real-time updates
+  /* ────────────────────── Total Unread Calculation ────────────────────── */
+  useEffect(() => {
+    const total = Object.values(unread).reduce((accumulator, count) => accumulator + count, 0);
+    setTotalUnread(total);
+  }, [unread]);
+
+  /* ────────────────────── Real-time Message Subscription ────────────────────── */
   useEffect(() => {
     if (!session) return;
-
-    if (channelRef.current) {
-      supabase.removeChannel(channelRef.current);
-    }
+    if (channelRef.current) supabase.removeChannel(channelRef.current);
 
     channelRef.current = supabase
-      .channel(`messages:${session.user.id}`)
+      .channel(`chat:${session.user.id}`)
       .on(
         "postgres_changes",
         {
           event: "INSERT",
           schema: "public",
           table: "messages",
-          filter: `or(sender_id.eq.${session.user.id},receiver_id.eq.${session.user.id})`,
+          filter: `or(sender_id.eq.${session.user.id},receiver_id.eq.${session.user.id})`
         },
-        async (payload) => {
-          if (payload.new.receiver_id === session.user.id && payload.new.sender_id !== selectedReceiver) {
-            setUnreadCounts(prev => ({
+        async payload => {
+          const newMessage = payload.new;
+
+          // Increment unread count if message is from a different conversation
+          if (newMessage.sender_id !== selectedUser && newMessage.receiver_id !== selectedUser) {
+            setUnread(prev => ({
               ...prev,
-              [payload.new.sender_id]: (prev[payload.new.sender_id] || 0) + 1,
+              [newMessage.sender_id]: (prev[newMessage.sender_id] || 0) + 1
             }));
+            return;
           }
+
+          // Add message instantly if in the current conversation
+          const { data: profile } = await supabase
+            .from("profiles")
+            .select("full_name, avatar_url")
+            .eq("id", newMessage.sender_id)
+            .single();
+
+          let signedUrl = null;
+          if (newMessage.attachment_url) {
+            const { data: signedData } = await supabase.storage
+              .from("chat-files")
+              .createSignedUrl(newMessage.attachment_url, 3600);
+            signedUrl = signedData?.signedUrl;
+          }
+
+          const enrichedMessage = {
+            ...newMessage,
+            signed_url: signedUrl,
+            sender: profile || { full_name: "Unknown", avatar_url: "/default-avatar.png" }
+          };
+
+          setMessages(prev => [...prev, enrichedMessage]);
+          setUnread(prev => ({ ...prev, [newMessage.sender_id]: 0 }));
         }
       )
       .subscribe();
@@ -131,285 +173,203 @@ const Chat = () => {
     return () => {
       if (channelRef.current) supabase.removeChannel(channelRef.current);
     };
-  }, [session, selectedReceiver]);
+  }, [session, selectedUser]);
 
-  // Auto-scroll with performance optimization
+  /* ────────────────────── Auto-scroll to Latest Message ────────────────────── */
   useEffect(() => {
-    const scrollToBottom = () => {
-      messagesEndRef.current?.scrollIntoView({ 
-        behavior: messages.length > 10 ? "smooth" : "auto" 
-      });
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
+
+  /* ────────────────────── Send Message (Optimistic UI) ────────────────────── */
+  const sendMessage = async () => {
+    if (!session || !selectedUser || (!input.trim() && !filePath)) return;
+
+    const messagePayload = {
+      sender_id: session.user.id,
+      receiver_id: selectedUser,
+      content: input.trim(),
+      attachment_url: filePath
     };
 
-    const timer = setTimeout(scrollToBottom, 100);
-    return () => clearTimeout(timer);
-  }, [messages.length]);
+    // Optimistic UI Update
+    const optimisticMessage = {
+      id: `temp-${Date.now()}`,
+      ...messagePayload,
+      created_at: new Date().toISOString(),
+      signed_url: filePath ? URL.createObjectURL(fileInputRef.current?.files?.[0]) : null,
+      sender: {
+        full_name: session.user.user_metadata?.full_name || "You",
+        avatar_url: session.user.user_metadata?.avatar_url || "/default-avatar.png"
+      }
+    };
+    setMessages(prev => [...prev, optimisticMessage]);
+    setInput("");
+    setFilePath(null);
+    setPreview(null);
 
-  // Message actions
-  const sendMessage = async () => {
-    if (!session || !selectedReceiver || (!messageText.trim() && !fileUrl)) return;
-
-    const { error } = await supabase.from("messages").insert([{
-      sender_id: session.user.id,
-      receiver_id: selectedReceiver,
-      content: messageText.trim(),
-      attachment_url: fileUrl,
-    }]);
-
-    if (!error) {
-      setMessageText("");
-      setFileUrl(null);
-      setPreviewImage(null);
-    }
+    // Database Insert (real-time subscription will replace temporary message)
+    await supabase.from("messages").insert([messagePayload]);
   };
 
-  const handleFileUpload = async (e) => {
-    const file = e.target.files[0];
+  /* ────────────────────── File Upload Handler ────────────────────── */
+  const handleFileUpload = async event => {
+    const file = event.target.files?.[0];
     if (!file || !session) return;
-
-    setPreviewImage(URL.createObjectURL(file));
+    setPreview(URL.createObjectURL(file));
     setUploading(true);
-
-    try {
-      const filePath = `${session.user.id}/${Date.now()}_${file.name}`;
-      const { error } = await supabase.storage
-        .from("chat-files")
-        .upload(filePath, file);
-
-      if (!error) setFileUrl(filePath);
-    } catch (err) {
-      console.error("Upload failed:", err);
-    } finally {
-      setUploading(false);
-    }
+    const path = `${session.user.id}/${Date.now()}_${file.name}`;
+    await supabase.storage.from("chat-files").upload(path, file);
+    setFilePath(path);
+    setUploading(false);
   };
 
-  const handleEdit = (msg) => {
-    setEditingMessageId(msg.id);
-    setEditingText(msg.content || "");
-  };
-
-  const saveEdit = async (id) => {
-    const { error } = await supabase
-      .from("messages")
-      .update({ content: editingText.trim() })
-      .eq("id", id)
-      .eq("sender_id", session.user.id);
-
-    if (!error) {
-      setEditingMessageId(null);
-      setEditingText("");
-    }
-  };
-
-  const handleDelete = async (id) => {
-    if (!window.confirm("Are you sure you want to delete this message?")) return;
-
-    await supabase
-      .from("messages")
-      .delete()
-      .eq("id", id)
-      .eq("sender_id", session.user.id);
-  };
-
-  const selectedUser = users.find(user => user.id === selectedReceiver);
+  const currentUser = users.find(user => user.id === selectedUser);
 
   return (
-    <div className="flex h-screen bg-gradient-to-br from-blue-50 to-purple-50">
-      {/* Sidebar */}
-      <div className="w-80 bg-white border-r border-gray-200 flex flex-col">
-        <div className="p-6 border-b border-gray-200">
-          <h1 className="text-2xl font-bold text-gray-800">💬 Messages</h1>
-          <p className="text-gray-600 text-sm mt-1">Chat with your team</p>
+    <div className="flex h-screen bg-gray-50">
+      {/* ───── Sidebar ───── */}
+      <div className="w-80 bg-white border-r border-gray-200 flex flex-col shadow-sm">
+        {/* Header with Notification Bell */}
+        <div className="p-5 border-b border-gray-100 flex items-center justify-between bg-white">
+          <h1 className="text-xl font-bold text-gray-800">Messages</h1>
+          <div className="relative">
+            <Bell size={22} className="text-gray-500 hover:text-gray-700 transition-colors cursor-pointer" />
+            {totalUnread > 0 && (
+              <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs font-medium rounded-full min-w-5 h-5 flex items-center justify-center animate-pulse shadow-sm">
+                {totalUnread > 99 ? '99+' : totalUnread}
+              </span>
+            )}
+          </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-4 space-y-2">
-          <label className="block text-sm font-medium text-gray-700 mb-3">
-            Select Conversation
-          </label>
-          {users.filter(user => user.id !== session?.user?.id).map((user) => (
+        {/* User List */}
+        <div className="flex-1 overflow-y-auto">
+          {users.map(user => (
             <button
               key={user.id}
-              onClick={() => setSelectedReceiver(user.id)}
-              className={`w-full p-4 flex items-center gap-4 rounded-xl transition-all ${
-                selectedReceiver === user.id
-                  ? "bg-gradient-to-r from-blue-500 to-purple-500 text-white shadow-lg"
-                  : "bg-white hover:bg-gray-50 text-gray-700 border border-gray-200"
+              onClick={() => setSelectedUser(user.id)}
+              className={`w-full p-4 flex items-center gap-3 hover:bg-gray-50 transition-colors border-b border-gray-50 ${
+                selectedUser === user.id ? "bg-blue-50 border-blue-100" : ""
               }`}
-              aria-label={`Chat with ${user.full_name}`}
             >
-              <img
-                src={user.avatar_url || "/default-avatar.png"}
-                alt={user.full_name}
-                className="w-12 h-12 rounded-full border-2 border-white"
-              />
-              <div className="flex-1 text-left">
-                <h3 className="font-semibold">{user.full_name}</h3>
-                <p className={`text-sm ${selectedReceiver === user.id ? 'text-blue-100' : 'text-gray-500'}`}>
-                  {unreadCounts[user.id] > 0 
-                    ? `${unreadCounts[user.id]} unread message${unreadCounts[user.id] > 1 ? 's' : ''}`
-                    : 'Click to chat'
-                  }
+              <div className="relative flex-shrink-0">
+                <img
+                  src={user.avatar_url || "/default-avatar.png"}
+                  alt={`${user.full_name}'s avatar`}
+                  className="w-12 h-12 rounded-full border-2 border-white shadow-sm"
+                />
+                {/* Unread Notification Badge */}
+                {unread[user.id] > 0 && (
+                  <span className={`absolute -top-1 -right-1 bg-red-500 text-white text-xs font-medium rounded-full min-w-5 h-5 flex items-center justify-center animate-pulse shadow-lg ${
+                    unread[user.id] > 9 ? 'px-1' : 'w-5'
+                  }`}>
+                    {unread[user.id] > 99 ? '99+' : unread[user.id]}
+                  </span>
+                )}
+              </div>
+              <div className="flex-1 text-left min-w-0">
+                <p className="font-medium text-gray-900 truncate">{user.full_name}</p>
+                <p className="text-sm text-gray-500 truncate">
+                  {unread[user.id] > 0 ? `${unread[user.id]} unread message${unread[user.id] > 1 ? 's' : ''}` : "Available to chat"}
                 </p>
               </div>
-              {unreadCounts[user.id] > 0 && (
-                <span className={`${
-                  selectedReceiver === user.id ? 'bg-white text-blue-600' : 'bg-red-500 text-white'
-                } text-xs font-bold rounded-full px-2 py-1 min-w-6 text-center`}>
-                  {unreadCounts[user.id]}
-                </span>
-              )}
             </button>
           ))}
         </div>
       </div>
 
-      {/* Main Chat Area */}
+      {/* ───── Main Chat Area ───── */}
       <div className="flex-1 flex flex-col">
-        {selectedReceiver ? (
+        {selectedUser ? (
           <>
             {/* Chat Header */}
-            <div className="bg-white border-b border-gray-200 p-6">
-              <div className="flex items-center gap-4">
+            <div className="bg-white border-b border-gray-200 p-4 flex items-center gap-3 shadow-sm">
+              <div className="relative">
                 <img
-                  src={selectedUser?.avatar_url || "/default-avatar.png"}
-                  alt={selectedUser?.full_name}
-                  className="w-14 h-14 rounded-full border-2 border-blue-200"
+                  src={currentUser?.avatar_url || "/default-avatar.png"}
+                  alt={currentUser?.full_name}
+                  className="w-10 h-10 rounded-full border-2 border-white shadow-sm"
                 />
-                <div>
-                  <h2 className="text-xl font-bold text-gray-800">
-                    {selectedUser?.full_name}
-                  </h2>
-                  <p className="text-green-600 font-medium flex items-center gap-2">
-                    <span className="w-2 h-2 bg-green-500 rounded-full"></span>
-                    Online
-                  </p>
-                </div>
+                {/* Online Status Indicator */}
+                <div className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 rounded-full border-2 border-white"></div>
+              </div>
+              <div>
+                <h2 className="font-semibold text-gray-800">{currentUser?.full_name}</h2>
+                <p className="text-sm text-green-600 font-medium">Online</p>
               </div>
             </div>
 
-            {/* Messages Area */}
-            <div className="flex-1 overflow-y-auto bg-gradient-to-b from-white to-blue-50/30 p-6">
-              {isLoading ? (
-                <div className="flex justify-center items-center h-32">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-                </div>
-              ) : messages.length === 0 ? (
-                <div className="text-center py-12">
-                  <div className="w-24 h-24 bg-gradient-to-r from-blue-100 to-purple-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                    <span className="text-3xl">👋</span>
-                  </div>
-                  <h3 className="text-lg font-semibold text-gray-700 mb-2">
-                    Start a conversation
-                  </h3>
-                  <p className="text-gray-500">
-                    Send your first message to {selectedUser?.full_name}
-                  </p>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  {messages.map((msg) => (
-                    <div
-                      key={msg.id}
-                      className={`flex gap-3 ${msg.sender_id === session?.user?.id ? "justify-end" : "justify-start"}`}
+            {/* Messages Container */}
+            <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-gray-50">
+              {messages.map(message => (
+                <div
+                  key={message.id}
+                  className={`flex gap-3 ${
+                    message.sender_id === session?.user?.id ? "justify-end" : "justify-start"
+                  }`}
+                >
+                  {message.sender_id !== session?.user?.id && (
+                    <img
+                      src={message.sender.avatar_url}
+                      alt={message.sender.full_name}
+                      className="w-8 h-8 rounded-full flex-shrink-0 shadow-sm"
+                    />
+                  )}
+                  <div
+                    className={`max-w-md px-4 py-3 rounded-2xl shadow-sm ${
+                      message.sender_id === session?.user?.id
+                        ? "bg-blue-600 text-white rounded-br-none"
+                        : "bg-white border border-gray-200 rounded-bl-none"
+                    }`}
+                  >
+                    {message.content && <p className="text-sm leading-relaxed">{message.content}</p>}
+                    {message.signed_url && (
+                      <img
+                        src={message.signed_url}
+                        alt="Attachment"
+                        className="mt-2 max-w-full rounded-lg max-h-64 object-cover shadow-sm"
+                      />
+                    )}
+                    <p
+                      className={`text-xs mt-2 ${
+                        message.sender_id === session?.user?.id
+                          ? "text-blue-200"
+                          : "text-gray-500"
+                      }`}
                     >
-                      {msg.sender_id !== session?.user?.id && (
-                        <img
-                          src={msg.sender?.avatar_url || "/default-avatar.png"}
-                          alt={msg.sender?.full_name}
-                          className="w-10 h-10 rounded-full flex-shrink-0"
-                        />
-                      )}
-                      
-                      <div className={`max-w-md rounded-2xl px-4 py-3 ${
-                        msg.sender_id === session?.user?.id
-                          ? "bg-gradient-to-r from-blue-500 to-purple-500 text-white rounded-br-none"
-                          : "bg-white border border-gray-200 text-gray-800 rounded-bl-none shadow-sm"
-                      }`}>
-                        {msg.sender_id !== session?.user?.id && (
-                          <p className="font-semibold text-sm mb-1">{msg.sender?.full_name}</p>
-                        )}
-                        
-                        {editingMessageId === msg.id ? (
-                          <div className="space-y-2">
-                            <textarea
-                              value={editingText}
-                              onChange={(e) => setEditingText(e.target.value)}
-                              className="w-full bg-transparent border-none resize-none focus:ring-0 text-inherit"
-                              rows="3"
-                              autoFocus
-                            />
-                            <div className="flex gap-2 text-sm">
-                              <button onClick={() => saveEdit(msg.id)} className="hover:underline">
-                                Save
-                              </button>
-                              <button onClick={() => setEditingMessageId(null)} className="hover:underline">
-                                Cancel
-                              </button>
-                            </div>
-                          </div>
-                        ) : (
-                          <>
-                            {msg.content && <p className="whitespace-pre-wrap">{msg.content}</p>}
-                            {msg.signed_url && (
-                              <img
-                                src={msg.signed_url}
-                                alt="Attachment"
-                                className="mt-2 max-w-full rounded-lg max-h-60 border"
-                              />
-                            )}
-                            <p className={`text-xs mt-2 ${msg.sender_id === session?.user?.id ? 'text-blue-100' : 'text-gray-500'}`}>
-                              {new Date(msg.created_at).toLocaleTimeString()}
-                            </p>
-                            
-                            {msg.sender_id === session?.user?.id && (
-                              <div className="flex gap-3 mt-2 text-xs">
-                                <button onClick={() => handleEdit(msg)} className="hover:underline">
-                                  Edit
-                                </button>
-                                <button onClick={() => handleDelete(msg.id)} className="hover:underline">
-                                  Delete
-                                </button>
-                              </div>
-                            )}
-                          </>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                  <div ref={messagesEndRef} />
+                      {format(new Date(message.created_at), "HH:mm")}
+                    </p>
+                  </div>
                 </div>
-              )}
+              ))}
+              <div ref={messagesEndRef} />
             </div>
 
-            {/* Input Area */}
-            <div className="bg-white border-t border-gray-200 p-6">
-              {previewImage && (
-                <div className="mb-4 relative inline-block">
-                  <img src={previewImage} alt="Preview" className="max-h-48 rounded-lg border" />
+            {/* Message Input Area */}
+            <div className="bg-white border-t border-gray-200 p-4 shadow-lg">
+              {preview && (
+                <div className="mb-3 relative inline-block">
+                  <img src={preview} alt="Preview" className="max-h-32 rounded-lg shadow-sm" />
                   <button
                     onClick={() => {
-                      setPreviewImage(null);
-                      setFileUrl(null);
+                      setPreview(null);
+                      setFilePath(null);
                     }}
-                    className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-sm hover:bg-red-600 transition-colors"
-                    aria-label="Remove image"
+                    className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center shadow-lg hover:bg-red-600 transition-colors"
                   >
-                    ×
+                    <X size={14} />
                   </button>
                 </div>
               )}
-              
-              <div className="flex gap-3">
+              <div className="flex items-end gap-3">
                 <button
                   onClick={() => fileInputRef.current?.click()}
                   disabled={uploading}
-                  className="px-4 py-3 bg-gray-100 hover:bg-gray-200 rounded-xl transition-colors disabled:opacity-50"
-                  aria-label="Attach image"
+                  className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors disabled:opacity-50"
+                  title="Attach file"
                 >
-                  📎
+                  <Paperclip size={20} />
                 </button>
-                
                 <input
                   ref={fileInputRef}
                   type="file"
@@ -417,49 +377,44 @@ const Chat = () => {
                   className="hidden"
                   onChange={handleFileUpload}
                 />
-                
-                <div className="flex-1 relative">
-                  <textarea
-                    value={messageText}
-                    onChange={(e) => setMessageText(e.target.value)}
-                    placeholder="Type your message..."
-                    className="w-full resize-none border border-gray-300 rounded-xl px-4 py-3 focus:ring-2 focus:ring-blue-500 focus:border-transparent pr-20"
-                    rows="1"
-                    onKeyPress={(e) => e.key === 'Enter' && !e.shiftKey && (e.preventDefault(), sendMessage())}
-                  />
-                  <div className="absolute right-2 top-1/2 transform -translate-y-1/2 text-sm text-gray-500">
-                    ⏎ to send
-                  </div>
-                </div>
-                
+                <textarea
+                  ref={textareaRef}
+                  value={input}
+                  onChange={event => setInput(event.target.value)}
+                  onKeyDown={event => {
+                    if (event.key === "Enter" && !event.shiftKey) {
+                      event.preventDefault();
+                      sendMessage();
+                    }
+                  }}
+                  placeholder="Type your message..."
+                  className="flex-1 resize-none border border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent max-h-32 bg-white"
+                  rows={1}
+                />
                 <button
                   onClick={sendMessage}
-                  disabled={uploading || !selectedReceiver || (!messageText.trim() && !fileUrl)}
-                  className="px-6 bg-gradient-to-r from-blue-500 to-purple-500 text-white rounded-xl font-semibold hover:from-blue-600 hover:to-purple-600 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg"
+                  disabled={!input.trim() && !filePath}
+                  className="p-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-sm"
+                  title="Send message"
                 >
-                  {uploading ? "⏳" : "🚀"}
+                  <Send size={20} />
                 </button>
               </div>
             </div>
           </>
         ) : (
-          <div className="flex-1 flex items-center justify-center bg-gradient-to-br from-blue-50 to-purple-50">
-            <div className="text-center">
-              <div className="w-32 h-32 bg-gradient-to-r from-blue-100 to-purple-100 rounded-full flex items-center justify-center mx-auto mb-6">
-                <span className="text-5xl">💭</span>
+          /* ───── Empty State ───── */
+          <div className="flex-1 flex items-center justify-center bg-gray-50">
+            <div className="text-center max-w-md mx-auto">
+              <div className="w-24 h-24 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-6 shadow-sm">
+                <span className="text-2xl text-blue-600 font-semibold">💬</span>
               </div>
-              <h2 className="text-2xl font-bold text-gray-800 mb-3">
-                Welcome to Chat
-              </h2>
-              <p className="text-gray-600 max-w-md">
-                Select a conversation from the sidebar to start messaging with your team members.
-              </p>
+              <h3 className="text-xl font-semibold text-gray-800 mb-2">Select a conversation</h3>
+              <p className="text-gray-600">Choose a contact from the sidebar to start messaging</p>
             </div>
           </div>
         )}
       </div>
     </div>
   );
-};
-
-export default Chat;
+}
