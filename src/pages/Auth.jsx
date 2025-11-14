@@ -1,3 +1,5 @@
+// Auth.jsx  (pure JavaScript – Vite)
+
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "../lib/supabaseClient";
@@ -37,9 +39,8 @@ const Message = ({ message, type = "info" }) => {
   const styles = {
     success: "bg-green-50 text-green-700 border border-green-200",
     error: "bg-red-50 text-red-700 border border-red-200",
-    info: "bg-blue-50 text-blue-700 border border-blue-200"
+    info: "bg-blue-50 text-blue-700 border border-blue-200",
   };
-
   return (
     <div className={`mt-4 p-3 rounded-xl text-sm text-center ${styles[type]}`}>
       {message}
@@ -62,77 +63,86 @@ export default function AuthPage() {
 
     try {
       let authResponse;
-      
+
+      // ---------- SIGN-UP ----------
       if (isSignUp) {
-        authResponse = await supabase.auth.signUp({ email, password });
-        if (authResponse.error) throw authResponse.error;
-        setMessage("✅ Check your email for a verification link.");
-        setIsLoading(false);
-        return;
-      } else {
+        // 1. Register the user
+        const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+          email,
+          password,
+        });
+        if (signUpError) throw signUpError;
+
+        // 2. **Auto-sign-in** the newly created user
+        const { data: signInData, error: signInError } =
+          await supabase.auth.signInWithPassword({ email, password });
+        if (signInError) throw signInError;
+
+        // Use the sign-in response for the rest of the flow
+        authResponse = signInData;
+      }
+      // ---------- SIGN-IN ----------
+      else {
         authResponse = await supabase.auth.signInWithPassword({ email, password });
         if (authResponse.error) throw authResponse.error;
       }
 
+      // ---------- FETCH ROLE ----------
       const { data: profile, error: profileError } = await supabase
         .from("profiles")
         .select("role")
-        .eq("id", authResponse.data.user.id)
+        .eq("id", authResponse.user.id)
         .single();
 
       if (profileError) throw profileError;
 
-      // Navigate based on role
+      // ---------- REDIRECT ----------
       const redirectPaths = {
         "Super Admin": "/admin",
-        "Admin": "/admin", 
-        "Member": "/member"
+        Admin: "/admin",
+        Member: "/member",
       };
-
       navigate(redirectPaths[profile.role] || "/unauthorized");
-      
     } catch (err) {
       setMessage(err.message);
+    } finally {
       setIsLoading(false);
     }
   };
 
   const handleGoogleLogin = async () => {
-  setIsLoading(true);
+    setIsLoading(true);
+    const redirectTo = `${import.meta.env.VITE_SITE_URL ?? ""}/`;
 
-  const redirectTo = `${process.env.NEXT_PUBLIC_SITE_URL}/`;
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: { redirectTo },
+    });
 
-  const { error } = await supabase.auth.signInWithOAuth({
-    provider: 'google',
-    options: { redirectTo },
-  });
-
-  if (error) {
-    setMessage(`Google login error: ${error.message}`);
-    setIsLoading(false);
-  }
-  // Do NOT setIsLoading(false) here — the page will reload/redirect
-};
+    if (error) {
+      setMessage(`Google login error: ${error.message}`);
+      setIsLoading(false);
+    }
+    // page will redirect – no need to clear loading
+  };
 
   const handleResetPassword = async () => {
     if (!email) {
       setMessage("Please enter your email to reset password.");
       return;
     }
-    
     setIsLoading(true);
     const { error } = await supabase.auth.resetPasswordForEmail(email);
-    
     if (error) {
       setMessage(error.message);
     } else {
-      setMessage("✅ Check your email for password reset instructions.");
+      setMessage("Check your email for password reset instructions.");
     }
     setIsLoading(false);
   };
 
   const getMessageType = (msg) => {
-    if (msg.includes("✅")) return "success";
+    if (msg.includes("Check")) return "success";
     if (msg.includes("Error") || msg.includes("failed")) return "error";
     return "info";
   };
@@ -143,13 +153,13 @@ export default function AuthPage() {
         {/* Header Section */}
         <div className="text-center mb-8">
           <div className="w-20 h-20 bg-gradient-to-r from-blue-600 to-purple-600 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg">
-            <span className="text-2xl text-white">🔐</span>
+            <span className="text-2xl text-white">Lock</span>
           </div>
-          <h1 className="text-3xl font-bold text-gray-800 mb-2">
-            Welcome Back
-          </h1>
+          <h1 className="text-3xl font-bold text-gray-800 mb-2">Welcome Back</h1>
           <p className="text-gray-600">
-            {isSignUp ? "Create your account to get started" : "Sign in to your account to continue"}
+            {isSignUp
+              ? "Create your account to get started"
+              : "Sign in to your account to continue"}
           </p>
         </div>
 
@@ -193,8 +203,10 @@ export default function AuthPage() {
             >
               {isLoading ? (
                 <LoadingSpinner />
+              ) : isSignUp ? (
+                "Create Account"
               ) : (
-                isSignUp ? "Create Account" : "Sign In"
+                "Sign In"
               )}
             </button>
           </form>
@@ -224,7 +236,9 @@ export default function AuthPage() {
               disabled={isLoading}
               className="text-blue-600 hover:text-blue-700 font-medium transition-colors disabled:opacity-50"
             >
-              {isSignUp ? "Already have an account? Sign In" : "Don't have an account? Sign Up"}
+              {isSignUp
+                ? "Already have an account? Sign In"
+                : "Don't have an account? Sign Up"}
             </button>
             <button
               type="button"
@@ -237,9 +251,7 @@ export default function AuthPage() {
           </div>
 
           {/* Message Display */}
-          {message && (
-            <Message message={message} type={getMessageType(message)} />
-          )}
+          {message && <Message message={message} type={getMessageType(message)} />}
         </div>
 
         {/* Footer */}
